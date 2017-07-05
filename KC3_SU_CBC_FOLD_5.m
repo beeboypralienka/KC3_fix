@@ -6,19 +6,22 @@ tic
 clc; clear;
 
 %--------------
-% Load file GR 
+% Load file SU 
 %--------------
-KC3_01_GR = csvread('03_SeleksiFitur\KC3_GR\KC3_GR.csv');
+KC3_01_SU = csvread('03_SeleksiFitur\KC3_SU\KC3_SU.csv');
 
 %-------------
-% K-Fold = 10
+% K-Fold = 5
 %-------------
-k = 10;
-vektorKC3 = KC3_01_GR(:,1);
+k = 5;
+vektorKC3 = KC3_01_SU(:,1);
+rng(1);
 cvFolds = crossvalind('Kfold', vektorKC3, k);
 clear vektorKC3; 
     
-for iFitur = 1 : 39
+disp('KC3_SU Calculation in progress...');
+
+for iFitur = 39 : -1 : 1
 %---
     for iFold = 1 : k
     %---
@@ -39,50 +42,100 @@ for iFitur = 1 : 39
         %------------------------------------------------------------------
         iTraining = 1; 
         iTesting = 1;                     
-        for iBarisData = 1 : length(KC3_01_GR)            
+        for iBarisData = 1 : length(KC3_01_SU)            
             if KC3_00_TrainIdx(iBarisData,iFold) == 1 %---- TRAINING                 
-                KC3_02_Train{1,iFitur}{iFold,1}(iTraining,1:iFitur) = KC3_01_GR(iTraining,1:iFitur); 
-                KC3_02_Train{1,iFitur}{iFold,1}(iTraining,iFitur+1) = KC3_01_GR(iTraining,40); % Tambah kelas
+                KC3_02_Train{1,iFitur}{iFold,1}(iTraining,1:iFitur) = KC3_01_SU(iTraining,1:iFitur); 
+                KC3_02_Train{1,iFitur}{iFold,1}(iTraining,iFitur+1) = KC3_01_SU(iTraining,40); % Tambah kelas
                 KC3_02_Train{1,iFitur}{iFold,1}(iTraining,iFitur+2) = iBarisData; % Tambah urutan data
                 iTraining = iTraining + 1;            
             else %---- TESTING                                        
-                KC3_03_Test{1,iFitur}{iFold,1}(iTesting,1:iFitur) = KC3_01_GR(iTesting,1:iFitur);            
-                KC3_03_Test{1,iFitur}{iFold,1}(iTesting,iFitur+1) = KC3_01_GR(iTesting,40); % Tambah kelas
+                KC3_03_Test{1,iFitur}{iFold,1}(iTesting,1:iFitur) = KC3_01_SU(iTesting,1:iFitur);            
+                KC3_03_Test{1,iFitur}{iFold,1}(iTesting,iFitur+1) = KC3_01_SU(iTesting,40); % Tambah kelas
                 KC3_03_Test{1,iFitur}{iFold,1}(iTesting,iFitur+2) = iBarisData; % Tambah urutan data
                 iTesting = iTesting + 1;
             end                        
         end
         clear iBarisData iTesting iTraining;
         
-        %----------------------------------------------------------------------------------------------------------
-        % Penentuan titik C1 yang mewakili kelas FALSE dan C2 yang mewakili kelas TRUE, berdasarkan "KC3_02_Train"
-        %----------------------------------------------------------------------------------------------------------
+        %------------------------------------------------------
+        % Pembagian data TRAINING yang kelasnya FALSE dan TRUE
+        %------------------------------------------------------
         fgFalse = 0;
         fgTrue = 0;        
-        for iJumlahTrain = 1 : size(KC3_02_Train{1,iFitur}{iFold,1},1)                                    
-            if KC3_02_Train{1,iFitur}{iFold,1}(iJumlahTrain,iFitur+1) == 0 %---- FALSE              
+        for iJumlahTrain = 1 : size(KC3_02_Train{1,iFitur}{iFold,1},1)  
+            %---- FALSE
+            if KC3_02_Train{1,iFitur}{iFold,1}(iJumlahTrain,iFitur+1) == 0               
                 fgFalse = fgFalse + 1;
                 KC3_04_Train_False{1,iFitur}{iFold,1}(fgFalse,:) = KC3_02_Train{1,iFitur}{iFold,1}(iJumlahTrain,:);             
-            else %---- TRUE
+            %---- TRUE
+            else 
                 fgTrue = fgTrue + 1;
                 KC3_05_Train_True{1,iFitur}{iFold,1}(fgTrue,:) = KC3_02_Train{1,iFitur}{iFold,1}(iJumlahTrain,:); 
             end                        
         end
-        clear fgFalse fgTrue iJumlahTrain;
+        clear fgFalse fgTrue iJumlahTrain;                      
+                                 
+        %--------------------------------------------------------------------------------------
+        % Cek pemilihan titik C1 jangan sampai pilih yang duplikat dengan kelas berbeda (TRUE)
+        %--------------------------------------------------------------------------------------
+        kFalse{1,iFitur}{iFold,1} = randperm(size(KC3_04_Train_False{1,iFitur}{iFold,1},1)); % acak urutan data "trainingFalse"
+        TrainTrue{iFold,1} = KC3_05_Train_True{1,39}{iFold,1};
+        urutan = 1;
+        duplikatC1 = true;
+        while duplikatC1                        
+            TrainTrue{iFold,1}(end+1,:) = KC3_04_Train_False{1,39}{iFold,1}(kFalse{1,39}{iFold,1}(1,urutan),:);
+            %----------------------------------------------
+            % Kalau jumlah GAK sama, berarti NO duplikasi
+            %----------------------------------------------
+            if size(KC3_05_Train_True{1,39}{iFold,1},1) ~= size(unique(TrainTrue{iFold,1}(:,1:39),'rows'),1)
+                duplikatC1 = false;
+                KC3_06_Titik_C1{1,iFitur}{iFold,1} = KC3_04_Train_False{1,iFitur}{iFold,1}(kFalse{1,39}{iFold,1}(1,urutan),:); % urutan pertama hasil acak, diambil sebagai C1  
+            %---------------
+            % ADA duplikasi
+            %---------------
+            else                
+                TrainTrue{iFold,1}(end,:) = [];
+                urutan = urutan + 1;
+            end            
+        end 
+        clear urutan duplikatC1 TrainTrue;
         
-        %---------------------------------------------------
-        % Tentukan C1 dari kumpulan kelas FALSE secara acak
-        %---------------------------------------------------   
-        kFalse = randperm(size(KC3_04_Train_False{1,iFitur}{iFold,1},1)); % acak urutan data "trainingFalse"
-        KC3_06_Titik_C1{1,iFitur}{iFold,1} = KC3_04_Train_False{1,iFitur}{iFold,1}(kFalse(1,1),:); % urutan pertama hasil acak, diambil sebagai C1
-        clear kFalse;       
+        %--------------------------------------------------------------------------------------
+        % Cek pemilihan titik C2 jangan sampai pilih yang duplikat dengan kelas berbeda (FALSE)
+        %--------------------------------------------------------------------------------------
+        kTrue{1,iFitur}{iFold,1} = randperm(size(KC3_05_Train_True{1,iFitur}{iFold,1},1)); % acak urutan data "trainingTrue"         
+        TrainFalse{iFold,1} = KC3_04_Train_False{1,39}{iFold,1};
+        urutan = 1;
+        duplikatC2 = true;
+        while duplikatC2                        
+            TrainFalse{iFold,1}(end+1,:) = KC3_05_Train_True{1,39}{iFold,1}(kTrue{1,39}{iFold,1}(1,urutan),:);
+            %----------------------------------------------
+            % Kalau jumlah GAK sama, berarti NO duplikasi
+            %----------------------------------------------
+            if size(KC3_04_Train_False{1,39}{iFold,1},1) ~= size(unique(TrainFalse{iFold,1}(:,1:39),'rows'),1)
+                duplikatC2 = false;
+                KC3_07_Titik_C2{1,iFitur}{iFold,1} = KC3_05_Train_True{1,iFitur}{iFold,1}(kTrue{1,39}{iFold,1}(1,urutan),:); % urutan pertama hasil acak, diambil sebagai C1  
+            %---------------
+            % ADA duplikasi
+            %---------------
+            else                
+                TrainFalse{iFold,1}(end,:) = [];
+                urutan = urutan + 1;
+            end            
+        end 
+        clear urutan duplikatC2 TrainFalse;       
 
-        %--------------------------------------------------
-        % Tentukan C2 dari kumpulan kelas TRUE secara acak
-        %--------------------------------------------------
-        kTrue = randperm(size(KC3_05_Train_True{1,iFitur}{iFold,1},1)); % acak urutan data "trainingTrue"
-        KC3_07_Titik_C2{1,iFitur}{iFold,1} = KC3_05_Train_True{1,iFitur}{iFold,1}(kTrue(1,1),:); % urutan pertama hasil acak, diambil sebagai C2
-        clear kTrue;
+%         %---------------------------------------------------
+%         % Tentukan C1 dari kumpulan kelas FALSE secara acak
+%         %--------------------------------------------------- 
+%         kFalse{1,iFitur}{iFold,1} = randperm(size(KC3_04_Train_False{1,39}{iFold,1},1)); % acak urutan data "trainingFalse"
+%         KC3_06_Titik_C1{1,iFitur}{iFold,1} = KC3_04_Train_False{1,iFitur}{iFold,1}(kFalse{1,39}{iFold,1}(1,1),:); % urutan pertama hasil acak, diambil sebagai C1  
+%         
+%         %--------------------------------------------------
+%         % Tentukan C2 dari kumpulan kelas TRUE secara acak
+%         %--------------------------------------------------        
+%         kTrue{1,iFitur}{iFold,1} = randperm(size(KC3_05_Train_True{1,39}{iFold,1},1)); % acak urutan data "trainingTrue"         
+%         KC3_07_Titik_C2{1,iFitur}{iFold,1} = KC3_05_Train_True{1,iFitur}{iFold,1}(kTrue{1,39}{iFold,1}(1,1),:); % urutan pertama hasil acak, diambil sebagai C2         
         
 %==============================================================================================
 %                                    ==  FASE 1  ===
@@ -679,79 +732,43 @@ for iFitur = 1 : 39
 %==============================================================================================
         
         %-----------------
-        % pd = tp/(tp+fn)
+        % PD = tp/(tp+fn)
         %-----------------
-        KC3_49_PD{1,iFitur}{iFold,1} = KC3_45_TP_{1,iFitur}{iFold,1}/(KC3_45_TP_{1,iFitur}{iFold,1}+KC3_47_FN_{1,iFitur}{iFold,1});
+        KC3_49_PD{1,iFitur}(iFold,1) = KC3_45_TP_{1,iFitur}{iFold,1}/(KC3_45_TP_{1,iFitur}{iFold,1} + KC3_47_FN_{1,iFitur}{iFold,1});
+        %---------
+        % Mean PD
+        %---------
+        KC3_50_Mean_PD(1,iFitur) = (mean(KC3_49_PD{1,iFitur}(:,1)))*100; % Mean hitung ke bawah, bukan ke samping
         
         %-----------------
-        % pf = fp/(fp+tn)        
+        % PF = fp/(fp+tn)        
         %-----------------
-        KC3_50_PF{1,iFitur}{iFold,1} = KC3_46_FP_{1,iFitur}{iFold,1}/(KC3_46_FP_{1,iFitur}{iFold,1}+KC3_48_TN_{1,iFitur}{iFold,1});
+        KC3_51_PF{1,iFitur}(iFold,1) = KC3_46_FP_{1,iFitur}{iFold,1}/(KC3_46_FP_{1,iFitur}{iFold,1} + KC3_48_TN_{1,iFitur}{iFold,1});
+        %---------
+        % Mean PF
+        %---------
+        KC3_52_Mean_PF(1,iFitur) = (mean(KC3_51_PF{1,iFitur}(:,1)))*100; % Mean hitung ke bawah, bukan ke samping
         
-        % bal = 1 - ( sqrt((0-pf)^2+(1-pd)^2) / sqrt(2) )
+        %-----------------------------------------------------
+        % Balance = 1 - ( sqrt((0-pf)^2+(1-pd)^2) / sqrt(2) )
+        %-----------------------------------------------------        
+        KC3_53_BAL{1,iFitur}(iFold,1) = 1 - ( sqrt( ((0 - KC3_51_PF{1,iFitur}(iFold,1))^2) + ((1 - KC3_49_PD{1,iFitur}(iFold,1))^2) ) / sqrt(2) );
+        %--------------
+        % Mean Balance
+        %--------------
+        KC3_54_Mean_BAL(1,iFitur) = (mean(KC3_53_BAL{1,iFitur}(:,1)))*100; % Mean hitung ke bawah, bukan ke samping
         
-%**************************************************************************************************************************        
-        
-% %==============================================================================================
-% %     ==  KC3_51_Koreksi_FP_C1 , KC3_52_Koreksi_TP_C1 , KC3_53_FN_C1 , KC3_54_TN_C1 ===
-% %==============================================================================================    
-%         actual = KC3_03_Test{1,iFitur}{iFold,1}(iBarisAvg,iFitur+1);        
-%         prediksi = KC3_41_Test_Avg_HamDist{1,iFitur}{iFold,1}(iBarisAvg,3); 
-%         koreksi_TP_C1 = 0;
-%         koreksi_FN_C1 = 0;
-%         koreksi_TN_C1 = 0;
-%         koreksi_FP_C1 = 0;
-%         for iBarisAvg = 1 : size(KC3_41_Test_Avg_HamDist{1,iFitur}{iFold,1},1)
-%             %----
-%             % TP C1
-%             %----
-%             if (actual == 0) && (prediksi == 11111)  
-%                 
-%             %----
-%             % FN C1
-%             %----
-%             elseif(actual == 0) && (prediksi == 22222)  
-%                 
-%             %----
-%             % FP C1
-%             %----
-%             elseif(actual == 1) && (prediksi == 11111)
-%                 
-%             %----
-%             % TN C1
-%             %----
-%             elseif(actual == 1) && (prediksi == 22222)    
-%              
-%                 
-%             end                
-%         end
-%         %------------------
-%         % Hitung PD dan PF
-%         %------------------
-%         
-%         clear iBarisAvg;
-% %==============================================================================================
-% %                             ==  KC3_53_FN && KC3_54_TN  ===
-% %============================================================================================== 
-%         for iBarisAvg = 1 : size(KC3_41_Test_Avg_HamDist{1,iFitur}{iFold,1},1)
-%             
-%         end
-%         clear iBarisAvg;
-% %==============================================================================================
-% %                             ==  KC3_55_PD && KC3_56_PF  ===
-% %==============================================================================================
-
     %---    
     end
 %---
 end
-clear cvFolds iFold testIdx k iFitur konvergen;
+clear cvFolds iFold testIdx k iFitur konvergen kFalse kTrue;
 
 toc
 
 disp('Saving...');
     tic
-        save('04_CBC\KC3_GR_CBC_FOLD_10.mat');        
+        save('04_CBC\KC3_SU_CBC_FOLD_5.mat');        
     toc
 disp('Done!');
 
